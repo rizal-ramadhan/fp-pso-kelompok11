@@ -1,0 +1,57 @@
+{
+  "data_loaded": true,
+  "source_file": "data/mental_health_lite.csv",
+  "shape": [
+    999,
+    14
+  ],
+  "columns": [
+    "age",
+    "gender",
+    "employment_status",
+    "work_environment",
+    "mental_health_history",
+    "seeks_treatment",
+    "stress_level",
+    "sleep_hours",
+    "physical_activity_days",
+    "depression_score",
+    "anxiety_score",
+    "social_support_score",
+    "productivity_score",
+    "mental_health_risk"
+  ],
+  "timestamp": "2025-06-05T00:08:44.353674",
+  "missing_values": {
+    "age": 0,
+    "gender": 0,
+    "employment_status": 0,
+    "work_environment": 0,
+    "mental_health_history": 0,
+    "seeks_treatment": 0,
+    "stress_level": 0,
+    "sleep_hours": 0,
+    "physical_activity_days": 0,
+    "depression_score": 0,
+    "anxiety_score": 0,
+    "social_support_score": 0,
+    "productivity_score": 0,
+    "mental_health_risk": 0
+  },
+  "data_types": {
+    "age": "int64",
+    "gender": "object",
+    "employment_status": "object",
+    "work_environment": "object",
+    "mental_health_history": "object",
+    "seeks_treatment": "object",
+    "stress_level": "int64",
+    "sleep_hours": "float64",
+    "physical_activity_days": "int64",
+    "depression_score": "int64",
+    "anxiety_score": "int64",
+    "social_support_score": "int64",
+    "productivity_score": "float64",
+    "mental_health_risk": "object"
+  }
+}

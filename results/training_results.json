@@ -1,0 +1,16 @@
+{
+  "training_completed": true,
+  "timestamp": "2025-06-05T00:08:47.560281",
+  "data_source": "data/mental_health_lite.csv",
+  "best_model": "XGBoost",
+  "best_accuracy": 0.96,
+  "models_trained": [
+    "RandomForest",
+    "XGBoost",
+    "LightGBM"
+  ],
+  "feature_count": 8,
+  "status": "success",
+  "model_path": "models/best_model_xgboost.skops",
+  "metadata_path": "models/model_metadata.json"
+}

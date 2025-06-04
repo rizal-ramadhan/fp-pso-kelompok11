@@ -1,0 +1,10 @@
+{
+  "report_generated": false,
+  "error": "Import error: cannot import name 'DataQualityPreset' from 'evidently.presets' (c:\\Users\\rizal\\anaconda3\\envs\\fppso\\lib\\site-packages\\evidently\\presets\\__init__.py)",
+  "error_type": "import_error",
+  "timestamp": "2025-06-05T00:08:44.355695",
+  "data_source": "data/mental_health_lite.csv",
+  "total_rows": 999,
+  "total_columns": 14,
+  "missing_values_count": 0
+}
