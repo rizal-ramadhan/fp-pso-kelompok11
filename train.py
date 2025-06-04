@@ -7,11 +7,13 @@ from datetime import datetime
 from sklearn.model_selection import train_test_split, cross_val_score, StratifiedKFold
 from sklearn.preprocessing import StandardScaler, LabelEncoder
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.metrics import accuracy_score, classification_report, f1_score, confusion_matrix
+from sklearn.metrics import accuracy_score, classification_report, f1_score, confusion_matrix, roc_curve, auc
 from sklearn.pipeline import Pipeline
 import xgboost as xgb
 import lightgbm as lgb
 import skops.io as sio
+import matplotlib.pyplot as plt
+import seaborn as sns
 from evidently import ColumnMapping
 from evidently.report import Report
 from evidently.metric_suite import DataDriftSuite
@@ -198,6 +200,245 @@ def prepare_features(df, target_column):
     
     return feature_columns
 
+def create_model_comparison_chart(models_results):
+    """Create model performance comparison chart"""
+    print("📊 Creating model comparison chart...")
+    
+    # Extract metrics
+    model_names = []
+    accuracies = []
+    f1_scores = []
+    
+    for name, results in models_results.items():
+        if 'error' not in results:
+            model_names.append(name)
+            accuracies.append(results['accuracy'])
+            f1_scores.append(results['f1_weighted'])
+    
+    if not model_names:
+        print("⚠️ No valid models to compare")
+        return
+    
+    # Create comparison plot
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 6))
+    
+    # Accuracy comparison
+    bars1 = ax1.bar(model_names, accuracies, color=['#FF6B6B', '#4ECDC4', '#45B7D1'])
+    ax1.set_title('Model Accuracy Comparison', fontsize=14, fontweight='bold')
+    ax1.set_ylabel('Accuracy', fontsize=12)
+    ax1.set_ylim(0, 1)
+    
+    # Add value labels on bars
+    for bar, acc in zip(bars1, accuracies):
+        height = bar.get_height()
+        ax1.annotate(f'{acc:.3f}',
+                    xy=(bar.get_x() + bar.get_width() / 2, height),
+                    xytext=(0, 3),
+                    textcoords="offset points",
+                    ha='center', va='bottom', fontweight='bold')
+    
+    # F1 Score comparison
+    bars2 = ax2.bar(model_names, f1_scores, color=['#FF6B6B', '#4ECDC4', '#45B7D1'])
+    ax2.set_title('Model F1-Score Comparison', fontsize=14, fontweight='bold')
+    ax2.set_ylabel('F1-Score (Weighted)', fontsize=12)
+    ax2.set_ylim(0, 1)
+    
+    # Add value labels on bars
+    for bar, f1 in zip(bars2, f1_scores):
+        height = bar.get_height()
+        ax2.annotate(f'{f1:.3f}',
+                    xy=(bar.get_x() + bar.get_width() / 2, height),
+                    xytext=(0, 3),
+                    textcoords="offset points",
+                    ha='center', va='bottom', fontweight='bold')
+    
+    plt.tight_layout()
+    plt.savefig('results/model_comparison.png', dpi=300, bbox_inches='tight')
+    plt.close()
+    
+    print("✅ Model comparison chart saved to results/model_comparison.png")
+
+def create_confusion_matrix_plot(y_test, y_pred, model_name):
+    """Create confusion matrix visualization"""
+    print(f"📊 Creating confusion matrix for {model_name}...")
+    
+    cm = confusion_matrix(y_test, y_pred)
+    
+    plt.figure(figsize=(8, 6))
+    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', cbar_kws={'label': 'Count'})
+    plt.title(f'Confusion Matrix - {model_name}', fontsize=14, fontweight='bold')
+    plt.xlabel('Predicted Label', fontsize=12)
+    plt.ylabel('True Label', fontsize=12)
+    
+    plt.tight_layout()
+    plt.savefig('results/confusion_matrix.png', dpi=300, bbox_inches='tight')
+    plt.close()
+    
+    print("✅ Confusion matrix saved to results/confusion_matrix.png")
+
+def create_roc_curve_plot(model, X_test, y_test, model_name):
+    """Create ROC curve for binary classification"""
+    print(f"📊 Creating ROC curve for {model_name}...")
+    
+    try:
+        # Check if binary classification
+        if len(np.unique(y_test)) != 2:
+            print("⚠️ ROC curve only supported for binary classification")
+            return
+            
+        y_pred_proba = model.predict_proba(X_test)[:, 1]
+        fpr, tpr, _ = roc_curve(y_test, y_pred_proba)
+        roc_auc = auc(fpr, tpr)
+        
+        plt.figure(figsize=(8, 6))
+        plt.plot(fpr, tpr, color='darkorange', lw=2, 
+                label=f'ROC curve (AUC = {roc_auc:.3f})')
+        plt.plot([0, 1], [0, 1], color='navy', lw=2, linestyle='--', 
+                label='Random Classifier')
+        plt.xlim([0.0, 1.0])
+        plt.ylim([0.0, 1.05])
+        plt.xlabel('False Positive Rate', fontsize=12)
+        plt.ylabel('True Positive Rate', fontsize=12)
+        plt.title(f'ROC Curve - {model_name}', fontsize=14, fontweight='bold')
+        plt.legend(loc="lower right")
+        plt.grid(alpha=0.3)
+        
+        plt.tight_layout()
+        plt.savefig('results/roc_curve.png', dpi=300, bbox_inches='tight')
+        plt.close()
+        
+        print("✅ ROC curve saved to results/roc_curve.png")
+        
+    except Exception as e:
+        print(f"⚠️ Could not create ROC curve: {e}")
+
+def create_feature_importance_plot(model, feature_columns, model_name):
+    """Create feature importance visualization"""
+    print(f"📊 Creating feature importance plot for {model_name}...")
+    
+    try:
+        # Get feature importance dari model
+        if hasattr(model.named_steps['classifier'], 'feature_importances_'):
+            importances = model.named_steps['classifier'].feature_importances_
+        elif hasattr(model.named_steps['classifier'], 'coef_'):
+            importances = np.abs(model.named_steps['classifier'].coef_[0])
+        else:
+            print("⚠️ Model does not support feature importance extraction")
+            return
+        
+        # Create feature importance dataframe
+        feature_imp_df = pd.DataFrame({
+            'feature': feature_columns,
+            'importance': importances
+        }).sort_values('importance', ascending=False)
+        
+        # Plot top 15 features
+        top_features = feature_imp_df.head(15)
+        
+        plt.figure(figsize=(10, 8))
+        sns.barplot(data=top_features, y='feature', x='importance', palette='viridis')
+        plt.title(f'Top 15 Feature Importance - {model_name}', fontsize=14, fontweight='bold')
+        plt.xlabel('Importance Score', fontsize=12)
+        plt.ylabel('Features', fontsize=12)
+        
+        plt.tight_layout()
+        plt.savefig('results/feature_importance.png', dpi=300, bbox_inches='tight')
+        plt.close()
+        
+        print("✅ Feature importance plot saved to results/feature_importance.png")
+        
+    except Exception as e:
+        print(f"⚠️ Could not create feature importance plot: {e}")
+
+def create_training_metrics_summary_plot(models_results):
+    """Create comprehensive training metrics summary"""
+    print("📊 Creating training metrics summary plot...")
+    
+    metrics_data = []
+    
+    for name, results in models_results.items():
+        if 'error' not in results:
+            metrics_data.append({
+                'Model': name,
+                'Accuracy': results['accuracy'],
+                'F1_Weighted': results['f1_weighted'],
+                'F1_Macro': results['f1_macro'],
+                'CV_Mean': results['cv_mean']
+            })
+    
+    if not metrics_data:
+        print("⚠️ No valid metrics data to plot")
+        return
+        
+    df_metrics = pd.DataFrame(metrics_data)
+    
+    # Create subplot
+    fig, axes = plt.subplots(2, 2, figsize=(15, 10))
+    fig.suptitle('Model Performance Metrics Summary', fontsize=16, fontweight='bold')
+    
+    # Plot each metric
+    metrics = ['Accuracy', 'F1_Weighted', 'F1_Macro', 'CV_Mean']
+    colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4']
+    
+    for i, (metric, color) in enumerate(zip(metrics, colors)):
+        ax = axes[i//2, i%2]
+        bars = ax.bar(df_metrics['Model'], df_metrics[metric], color=color, alpha=0.8)
+        ax.set_title(f'{metric.replace("_", " ")}', fontsize=12, fontweight='bold')
+        ax.set_ylabel('Score', fontsize=10)
+        ax.set_ylim(0, 1)
+        
+        # Add value labels
+        for bar, value in zip(bars, df_metrics[metric]):
+            height = bar.get_height()
+            ax.annotate(f'{value:.3f}',
+                       xy=(bar.get_x() + bar.get_width() / 2, height),
+                       xytext=(0, 3),
+                       textcoords="offset points",
+                       ha='center', va='bottom', fontsize=9)
+    
+    plt.tight_layout()
+    plt.savefig('results/training_metrics_summary.png', dpi=300, bbox_inches='tight')
+    plt.close()
+    
+    print("✅ Training metrics summary saved to results/training_metrics_summary.png")
+
+def create_model_visualizations(models_results, y_test, X_test, trained_models, feature_columns):
+    """Create comprehensive model performance visualizations"""
+    print("📊 Creating model performance visualizations...")
+    
+    # Setup plot style
+    plt.style.use('default')
+    sns.set_palette("husl")
+    
+    # 1. Model Comparison Chart
+    create_model_comparison_chart(models_results)
+    
+    # 2. Training metrics summary
+    create_training_metrics_summary_plot(models_results)
+    
+    # Find best model
+    valid_models = [name for name in models_results.keys() if 'error' not in models_results[name]]
+    if not valid_models:
+        print("⚠️ No valid models found for detailed visualizations")
+        return
+        
+    best_model_name = max(valid_models, key=lambda x: models_results[x]['accuracy'])
+    
+    if best_model_name in trained_models:
+        best_model = trained_models[best_model_name]
+        y_pred = best_model.predict(X_test)
+        
+        # 3. Confusion Matrix
+        create_confusion_matrix_plot(y_test, y_pred, best_model_name)
+        
+        # 4. ROC Curve (jika binary classification)
+        create_roc_curve_plot(best_model, X_test, y_test, best_model_name)
+        
+        # 5. Feature Importance
+        create_feature_importance_plot(best_model, feature_columns, best_model_name)
+    
+    print("✅ Model visualizations created successfully")
+
 def train_models(X_train, X_test, y_train, y_test, feature_columns):
     """Train multiple models dan return best model"""
     print("🤖 Training multiple models...")
@@ -272,17 +513,17 @@ def train_models(X_train, X_test, y_train, y_test, feature_columns):
             results[name] = {'error': str(e)}
     
     # Find best model
-    best_model_name = max(
-        [name for name in results.keys() if 'error' not in results[name]], 
-        key=lambda x: results[x]['accuracy']
-    )
-    
+    valid_models = [name for name in results.keys() if 'error' not in results[name]]
+    if not valid_models:
+        raise ValueError("❌ No models trained successfully")
+        
+    best_model_name = max(valid_models, key=lambda x: results[x]['accuracy'])
     best_model = trained_models[best_model_name]
     best_accuracy = results[best_model_name]['accuracy']
     
     print(f"🏆 Best model: {best_model_name} (Accuracy: {best_accuracy:.4f})")
     
-    return best_model, best_model_name, results
+    return best_model, best_model_name, results, trained_models
 
 def save_model_and_metadata(model, model_name, results, feature_columns, encoders):
     """Save model dan metadata"""
@@ -335,7 +576,14 @@ def create_training_summary(metadata, data_source):
         "feature_count": len(metadata['feature_columns']),
         "status": "success",
         "model_path": metadata['model_path'],
-        "metadata_path": "models/model_metadata.json"
+        "metadata_path": "models/model_metadata.json",
+        "visualizations_created": [
+            "results/model_comparison.png",
+            "results/confusion_matrix.png",
+            "results/roc_curve.png",
+            "results/feature_importance.png",
+            "results/training_metrics_summary.png"
+        ]
     }
     
     # Save training summary
@@ -386,9 +634,12 @@ def main():
         print(f"📊 Train: {X_train.shape}, Test: {X_test.shape}")
         
         # Train models
-        best_model, best_model_name, results = train_models(
+        best_model, best_model_name, results, trained_models = train_models(
             X_train, X_test, y_train, y_test, feature_columns
         )
+        
+        # Create visualizations
+        create_model_visualizations(results, y_test, X_test, trained_models, feature_columns)
         
         # Save model and metadata
         metadata = save_model_and_metadata(
@@ -402,6 +653,12 @@ def main():
         print("🎉 Training pipeline completed successfully!")
         print(f"🏆 Best model: {best_model_name}")
         print(f"📊 Best accuracy: {metadata['best_accuracy']:.4f}")
+        print("📊 Visualizations created:")
+        print("   - Model comparison chart")
+        print("   - Confusion matrix")
+        print("   - ROC curve (if binary classification)")
+        print("   - Feature importance plot")
+        print("   - Training metrics summary")
         
     except Exception as e:
         print(f"❌ Training pipeline failed: {e}")
