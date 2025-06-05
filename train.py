@@ -676,6 +676,8 @@ def save_all_visualizations(best_model, best_model_name, results, feature_column
     
     return visualization_paths
 
+
+
 def save_model_and_metadata(best_model, best_model_name, results, feature_columns, encoders):
     """Save model dan metadata dengan proper serialization"""
     print("💾 Saving model and metadata...")
@@ -820,6 +822,11 @@ def main():
         best_model, best_model_name, results, y_pred = train_models_fixed(
             X_train, X_test, y_train, y_test, feature_columns
         )
+
+        # ✅ Save model comparison metrics to JSON
+        with open("results/model_comparison.json", "w") as f:
+            json.dump(results, f, indent=2)
+        print("✅ Model comparison saved to results/model_comparison.json")
         
         # ✅ Save model and metadata (menggunakan fungsi yang sudah ada)
         metadata = save_model_and_metadata(
