@@ -679,7 +679,7 @@ def save_all_visualizations(best_model, best_model_name, results, feature_column
 
 
 def save_model_and_metadata(best_model, best_model_name, results, feature_columns, encoders):
-    """Save model dan metadata dengan proper serialization"""
+    """Save model dan metadata dengan proper serialization dan field tambahan untuk quality gates"""
     print("💾 Saving model and metadata...")
     
     try:
@@ -711,14 +711,40 @@ def save_model_and_metadata(best_model, best_model_name, results, feature_column
             pickle.dump(feature_columns, f)
         print(f"✅ Feature columns saved: {feature_path}")
         
-        # ✅ Create JSON-serializable metadata
+        # ✅ Get best model results
+        best_result = results[best_model_name]
+        
+        # ✅ Create JSON-serializable metadata dengan field tambahan untuk quality gates
         metadata = {
             'best_model_name': best_model_name,
             'feature_columns': feature_columns,
-            'test_accuracy': float(results[best_model_name]['accuracy']),
-            'test_f1': float(results[best_model_name]['f1_weighted']),
-            'cv_mean': float(results[best_model_name]['cv_mean']),
-            'cv_std': float(results[best_model_name]['cv_std']),
+            
+            # ✅ Original fields
+            'test_accuracy': float(best_result['accuracy']),
+            'test_f1': float(best_result['f1_weighted']),
+            'cv_mean': float(best_result['cv_mean']),
+            'cv_std': float(best_result['cv_std']),
+            
+            # ✅ TAMBAHAN: Field yang dibutuhkan quality gates
+            'final_test_accuracy': float(best_result['accuracy']),  # Quality gates field
+            'final_test_f1': float(best_result['f1_weighted']),     # Quality gates field
+            
+            # ✅ TAMBAHAN: Quality metrics untuk comprehensive assessment
+            'model_quality_passed': float(best_result['accuracy']) >= 0.70,
+            'quality_threshold': 0.70,
+            'f1_threshold': 0.65,
+            'model_performance_tier': (
+                'excellent' if float(best_result['accuracy']) >= 0.90 
+                else 'good' if float(best_result['accuracy']) >= 0.80 
+                else 'acceptable' if float(best_result['accuracy']) >= 0.70 
+                else 'below_threshold'
+            ),
+            
+            # ✅ TAMBAHAN: Additional metrics untuk monitoring
+            'f1_macro': float(best_result.get('f1_macro', 0.0)),
+            'training_samples': len(feature_columns),  # Approximate
+            'model_complexity': 'medium',  # Can be calculated based on model type
+            
             'timestamp': datetime.now().isoformat(),
             'encoders_info': encoders_serializable  # JSON-serializable version
         }
@@ -824,9 +850,24 @@ def main():
         )
 
         # ✅ Save model comparison metrics to JSON
+        model_comparison = {
+        "timestamp": datetime.now().isoformat(),
+        "best_model": best_model_name,
+        "model_scores": {},
+        "final_test_accuracy": results[best_model_name]["accuracy"],
+        "final_test_f1": results[best_model_name]["f1_weighted"]
+        }
+
+        for model_name, score_dict in results.items():
+            if 'error' not in score_dict:
+                model_comparison["model_scores"][model_name] = {
+                    "mean_accuracy": score_dict["cv_mean"],
+                    "std_accuracy": score_dict["cv_std"]
+            }
+
         with open("results/model_comparison.json", "w") as f:
-            json.dump(results, f, indent=2)
-        print("✅ Model comparison saved to results/model_comparison.json")
+            json.dump(model_comparison, f, indent=2)
+        print("✅ Custom model comparison saved to results/model_comparison.json")
         
         # ✅ Save model and metadata (menggunakan fungsi yang sudah ada)
         metadata = save_model_and_metadata(
