@@ -831,6 +831,25 @@ def main():
             best_model, best_model_name, results, feature_columns, y_test, y_pred
         )
         
+        # ✅ Save metrics to results/metrics.txt
+        metrics_txt_path = "results/metrics.txt"
+        with open(metrics_txt_path, "w") as f:
+            f.write(f"Best Model: {best_model_name}\n")
+            f.write(f"CV Accuracy: {results[best_model_name]['cv_mean']:.4f}\n")
+            f.write(f"Test Accuracy: {results[best_model_name]['accuracy']:.4f}\n")
+            f.write(f"Test F1 Score: {results[best_model_name]['f1_weighted']:.4f}\n\n")
+
+            f.write("Model Comparison:\n")
+            for model_name, model_result in results.items():
+                if 'error' not in model_result:
+                    f.write(f"{model_name}: {model_result['cv_mean']:.4f} (+/- {model_result['cv_std']:.4f})\n")
+
+            f.write("\nClassification Report:\n")
+            report = classification_report(y_test, y_pred, digits=4)
+            f.write(report)
+        print(f"✅ Metrics saved to {metrics_txt_path}")
+
+
         # Add visualization paths to metadata
         metadata['visualization_paths'] = visualization_paths
         
@@ -893,4 +912,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
